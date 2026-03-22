@@ -21,31 +21,32 @@ task.spawn(function()
         task.wait(0.7) 
     end
 end)
+local HITBOX_SIZE = 36
+local HITBOX_TRANSPARENCY = 0.5
+
 task.spawn(function() 
     while task.wait(0.5) do
-        if getgenv().Setting["Hitbox"].Enabled then
-            local s = getgenv().Setting["Hitbox"].Size
-            local t = getgenv().Setting["Hitbox"].Transparency
-            pcall(function()
-                for _, v in pairs(game.Workspace.Enemies:GetChildren()) do
-                    if v:FindFirstChild("HumanoidRootPart") then
-                        v.HumanoidRootPart.Size = Vector3.new(s, s, s)
-                        v.HumanoidRootPart.Transparency = t
-                        v.HumanoidRootPart.CanCollide = false
-                    end
+        pcall(function()
+            -- Thay đổi hitbox của quái
+            for _, v in pairs(game.Workspace.Enemies:GetChildren()) do
+                if v:FindFirstChild("HumanoidRootPart") then
+                    v.HumanoidRootPart.Size = Vector3.new(HITBOX_SIZE, HITBOX_SIZE, HITBOX_SIZE)
+                    v.HumanoidRootPart.Transparency = HITBOX_TRANSPARENCY
+                    v.HumanoidRootPart.CanCollide = false
                 end
-                for _, p in pairs(game.Players:GetPlayers()) do
-                    if p ~= game.Players.LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                        p.Character.HumanoidRootPart.Size = Vector3.new(s, s, s)
-                        p.Character.HumanoidRootPart.Transparency = t
-                        p.Character.HumanoidRootPart.CanCollide = false
-                    end
+            end
+
+            -- Thay đổi hitbox của người chơi khác
+            for _, p in pairs(game.Players:GetPlayers()) do
+                if p ~= game.Players.LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    p.Character.HumanoidRootPart.Size = Vector3.new(HITBOX_SIZE, HITBOX_SIZE, HITBOX_SIZE)
+                    p.Character.HumanoidRootPart.Transparency = HITBOX_TRANSPARENCY
+                    p.Character.HumanoidRootPart.CanCollide = false
                 end
-            end)
-        end
+            end
+        end)
     end
 end)
-
 
 spawn(function()
     local Players = game:GetService("Players")
@@ -72,3 +73,78 @@ spawn(function()
 end)
 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/SkibidiHub111/.lua/refs/heads/main/moudlefastattack"))() 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/AnhDangNhoEm/TuanAnhIOS/refs/heads/main/koby"))()
+
+-- [[ KHỞI TẠO BIẾN HỆ THỐNG ]]
+local lp = game:GetService("Players").LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Net = ReplicatedStorage:FindFirstChild("Net") -- Remote chính của Blox Fruit
+
+-- Cấu hình mặc định (Nếu chưa có trong Script chính)
+getgenv().AutoBounty = getgenv().AutoBounty or {}
+getgenv().AutoBounty.Combat = getgenv().AutoBounty.Combat or {
+    FastAttackSpeed = 12 -- Tốc độ đánh (1-15 là an toàn)
+}
+
+-- [[ HÀM KIỂM TRA TRÁI ÁC QUỶ ]]
+function HasM1Fruit()
+    local char = lp.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    -- Kiểm tra ToolTip là Blox Fruit
+    if tool and tool.ToolTip == "Blox Fruit" then
+        return true
+    end
+    return false
+end
+
+-- [[ HÀM FAST ATTACK M1 ]]
+function FastAttackFruit()
+    if getgenv().IsUsingFastAttack then return end
+    
+    local char = lp.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    
+    if tool and HasM1Fruit() then
+        getgenv().IsUsingFastAttack = true
+        
+        -- Số lần vung đòn trong 1 lần gọi hàm
+        local attackSpeed = getgenv().AutoBounty.Combat.FastAttackSpeed or 12
+        
+        for i = 1, attackSpeed do
+            task.spawn(function()
+                pcall(function()
+                    -- 1. Kích hoạt hiệu ứng vung tay
+                    tool:Activate()
+                    
+                    -- 2. Gửi tín hiệu sát thương (Remote đánh thường)
+                    local remote = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("Remote")
+                    if remote then
+                        remote:FireServer(Vector3.new(0,0,0), 1)
+                    end
+                    
+                    -- 3. Gửi tín hiệu Attack lên Server (Gây dmg diện rộng)
+                    if Net and getgenv().targ and getgenv().targ.Character then
+                        Net:InvokeServer("Attack", {
+                            [1] = getgenv().targ.Character:FindFirstChild("HumanoidRootPart")
+                        })
+                    end
+                end)
+            end)
+            -- Delay cực nhỏ để tối ưu hóa tốc độ gửi gói tin (Packet)
+            task.wait(0.005) 
+        end
+        
+        getgenv().IsUsingFastAttack = false
+    end
+end
+
+-- [[ VÒNG LẶP KÍCH HOẠT ]]
+-- Script sẽ liên tục kiểm tra, nếu bạn đang cầm Fruit và có mục tiêu (targ), nó sẽ tự đánh.
+task.spawn(function()
+    while task.wait() do
+        -- Chỉ chạy khi có mục tiêu (getgenv().targ)
+        if getgenv().targ and HasM1Fruit() then
+            FastAttackFruit()
+        end
+    end
+end)
